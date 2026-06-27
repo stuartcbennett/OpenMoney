@@ -1,0 +1,50 @@
+<Window x:Class="OpenMoney.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        xmlns:views="clr-namespace:OpenMoney.App.Views"
+        mc:Ignorable="d"
+        Title="OpenMoney" Height="700" Width="1100"
+        TextElement.Foreground="{DynamicResource MaterialDesignBody}"
+        Background="{DynamicResource MaterialDesignPaper}"
+        FontFamily="{materialDesign:MaterialDesignFont}">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- App Bar -->
+        <materialDesign:ColorZone Mode="PrimaryMid" Padding="8 4" Grid.Row="0">
+            <StackPanel Orientation="Horizontal">
+                <materialDesign:PackIcon Kind="Cash" Width="32" Height="32" VerticalAlignment="Center" Margin="4 0 8 0"/>
+                <TextBlock Text="OpenMoney" FontSize="22" FontWeight="Bold" VerticalAlignment="Center"/>
+            </StackPanel>
+        </materialDesign:ColorZone>
+
+        <!-- Tab Control -->
+        <TabControl Grid.Row="1"
+                    SelectedIndex="{Binding SelectedTabIndex}"
+                    Style="{StaticResource MaterialDesignTabControl}">
+
+            <TabItem Header="Portfolio">
+                <views:PortfolioView DataContext="{Binding Portfolio}"/>
+            </TabItem>
+
+            <TabItem Header="Accounts">
+                <views:AccountView DataContext="{Binding Accounts}"/>
+            </TabItem>
+
+            <TabItem Header="Reports">
+                <views:ReportsView DataContext="{Binding Reports}"/>
+            </TabItem>
+
+            <TabItem Header="Settings">
+                <views:SettingsView DataContext="{Binding Settings}"/>
+            </TabItem>
+
+        </TabControl>
+    </Grid>
+</Window>

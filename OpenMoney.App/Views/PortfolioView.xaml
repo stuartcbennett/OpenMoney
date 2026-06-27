@@ -1,0 +1,98 @@
+<UserControl x:Class="OpenMoney.App.Views.PortfolioView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             Loaded="UserControl_Loaded">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Summary header -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0 0 0 12">
+            <TextBlock Text="Total Portfolio Value:" FontSize="16" VerticalAlignment="Center"/>
+            <TextBlock Text="{Binding TotalMarketValue, StringFormat=C}" FontSize="18" FontWeight="Bold"
+                       Margin="8 0 0 0" VerticalAlignment="Center"/>
+            <Button Content="Refresh" Command="{Binding LoadCommand}"
+                    Style="{StaticResource MaterialDesignOutlinedButton}" Margin="16 0 0 0"/>
+        </StackPanel>
+
+        <!-- Column headers (offset ~19px for TreeView toggle button) -->
+        <Grid Grid.Row="1" Margin="19 0 0 4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="220"/>
+                <ColumnDefinition Width="80"/>
+                <ColumnDefinition Width="100"/>
+                <ColumnDefinition Width="120"/>
+                <ColumnDefinition Width="100"/>
+                <ColumnDefinition Width="100"/>
+                <ColumnDefinition Width="100"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="Name"           FontWeight="SemiBold" Foreground="{DynamicResource MaterialDesignBodyLight}"/>
+            <TextBlock Grid.Column="1" Text="Quantity"       FontWeight="SemiBold" Foreground="{DynamicResource MaterialDesignBodyLight}" HorizontalAlignment="Right"/>
+            <TextBlock Grid.Column="2" Text="Latest Price"   FontWeight="SemiBold" Foreground="{DynamicResource MaterialDesignBodyLight}" HorizontalAlignment="Right"/>
+            <TextBlock Grid.Column="3" Text="Market Value"   FontWeight="SemiBold" Foreground="{DynamicResource MaterialDesignBodyLight}" HorizontalAlignment="Right"/>
+            <TextBlock Grid.Column="4" Text="Ann. Return"    FontWeight="SemiBold" Foreground="{DynamicResource MaterialDesignBodyLight}" HorizontalAlignment="Right"/>
+            <TextBlock Grid.Column="5" Text="ROI 1 yr"       FontWeight="SemiBold" Foreground="{DynamicResource MaterialDesignBodyLight}" HorizontalAlignment="Right"/>
+            <TextBlock Grid.Column="6" Text="ROI 3 yr"       FontWeight="SemiBold" Foreground="{DynamicResource MaterialDesignBodyLight}" HorizontalAlignment="Right"/>
+        </Grid>
+
+        <Separator Grid.Row="2" Margin="0 0 0 4"/>
+
+        <!-- Tree of accounts / investments -->
+        <TreeView Grid.Row="3" ItemsSource="{Binding AccountNodes}">
+            <TreeView.ItemTemplate>
+                <HierarchicalDataTemplate ItemsSource="{Binding Investments}">
+                    <!-- Account node — Name spans Name+Quantity+Price columns -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="220"/>
+                            <ColumnDefinition Width="80"/>
+                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="120"/>
+                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="100"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Grid.ColumnSpan="3" Text="{Binding Name}" FontWeight="Bold"/>
+                        <TextBlock Grid.Column="3" Text="{Binding MarketValue, StringFormat=C}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Column="4" Text="{Binding AnnualReturn}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Column="5" Text="{Binding Roi1Yr}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Column="6" Text="{Binding Roi3Yr}" HorizontalAlignment="Right"/>
+                    </Grid>
+                    <HierarchicalDataTemplate.ItemTemplate>
+                        <!-- Investment leaf node -->
+                        <DataTemplate>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="220"/>
+                                    <ColumnDefinition Width="80"/>
+                                    <ColumnDefinition Width="100"/>
+                                    <ColumnDefinition Width="120"/>
+                                    <ColumnDefinition Width="100"/>
+                                    <ColumnDefinition Width="100"/>
+                                    <ColumnDefinition Width="100"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding Name}"/>
+                                <TextBlock Grid.Column="1" Text="{Binding Quantity, StringFormat=N3}"        HorizontalAlignment="Right"/>
+                                <TextBlock Grid.Column="2" Text="{Binding CurrentPrice, StringFormat=C}"    HorizontalAlignment="Right"/>
+                                <TextBlock Grid.Column="3" Text="{Binding MarketValue, StringFormat=C}"     HorizontalAlignment="Right"/>
+                                <TextBlock Grid.Column="4" Text="{Binding AnnualReturn}"                    HorizontalAlignment="Right"/>
+                                <TextBlock Grid.Column="5" Text="{Binding Roi1Yr}"                          HorizontalAlignment="Right"/>
+                                <TextBlock Grid.Column="6" Text="{Binding Roi3Yr}"                          HorizontalAlignment="Right"/>
+                            </Grid>
+                        </DataTemplate>
+                    </HierarchicalDataTemplate.ItemTemplate>
+                </HierarchicalDataTemplate>
+            </TreeView.ItemTemplate>
+        </TreeView>
+
+        <!-- Loading overlay -->
+        <Grid Grid.Row="3" Visibility="{Binding IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <ProgressBar IsIndeterminate="True" Width="200" Height="4" VerticalAlignment="Center"/>
+        </Grid>
+    </Grid>
+</UserControl>
