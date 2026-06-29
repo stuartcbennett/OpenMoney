@@ -1,0 +1,16 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug OpenMoney",
+            "type": "coreclr",
+            "request": "launch",
+            "program": "${workspaceFolder}/OpenMoney.App/bin/Debug/net10.0-windows/OpenMoney.App.exe",
+            "args": [],
+            "cwd": "${workspaceFolder}/OpenMoney.App",
+            "preLaunchTask": "build",
+            "console": "internalConsole",
+            "stopAtEntry": false
+        }
+    ]
+}

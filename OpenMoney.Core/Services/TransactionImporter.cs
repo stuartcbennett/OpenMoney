@@ -1,3 +1,4 @@
+using System.Globalization;
 using OpenMoney.Core.Models;
 
 namespace OpenMoney.Core.Services;
@@ -7,6 +8,9 @@ public class ImportResult
     public List<Transaction> Transactions { get; } = new();
     public List<string> Errors { get; } = new();
     public string? AccountName { get; set; }
+    // Investments seen in the file that were not in the supplied dictionary.
+    // Key = investment name, Value = first transaction price (used as InitialPrice).
+    public Dictionary<string, decimal> NewInvestments { get; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 public static class TransactionImporter
@@ -19,33 +23,36 @@ public static class TransactionImporter
         var result = new ImportResult();
         var lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries);
 
-        string? currentAccountName = null;
         bool inDataSection = false;
 
         foreach (var rawLine in lines)
         {
-            var line = rawLine.TrimEnd();
+            var line = rawLine.Trim();
+            if (string.IsNullOrWhiteSpace(line)) continue;
 
-            // Account name appears after "Investment Transactions" header
-            if (result.AccountName is null && !line.StartsWith("Investment Transactions") && !string.IsNullOrWhiteSpace(line) && !line.StartsWith("Date") && !line.StartsWith("==="))
+            // Skip the top-level header
+            if (line.StartsWith("Investment Transactions", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            // Second non-blank non-header line is the account name
+            if (result.AccountName is null)
             {
-                result.AccountName = line.Trim();
-                currentAccountName = result.AccountName;
+                result.AccountName = line;
                 continue;
             }
 
-            // Section separator / header row
-            if (line.StartsWith("===") || line.TrimStart().StartsWith("Date"))
+            // Wait for the CSV column header row
+            if (!inDataSection)
             {
-                inDataSection = line.TrimStart().StartsWith("Date") || inDataSection;
+                if (line.StartsWith("Date,", StringComparison.OrdinalIgnoreCase))
+                    inDataSection = true;
                 continue;
             }
 
-            // Skip category headers like "Mutual Funds"
-            if (!inDataSection) continue;
-            if (!char.IsDigit(line.TrimStart().FirstOrDefault())) continue;
+            // Skip category headings (e.g. "Mutual Funds") — they don't start with a digit
+            if (!char.IsDigit(line[0])) continue;
 
-            var tx = ParseLine(line, investmentsByName, accountsByName, currentAccountName, result);
+            var tx = ParseCsvLine(line, investmentsByName, accountsByName, result.AccountName, result);
             if (tx != null)
                 result.Transactions.Add(tx);
         }
@@ -53,55 +60,62 @@ public static class TransactionImporter
         return result;
     }
 
-    private static Transaction? ParseLine(
+    private static Transaction? ParseCsvLine(
         string line,
         IReadOnlyDictionary<string, Investment> investmentsByName,
         IReadOnlyDictionary<string, Account> accountsByName,
         string? accountName,
         ImportResult result)
     {
-        // Fixed-width columns based on sample:
-        // Date(0-10), Investment(10-42), Activity(42-60), Qty(60-70), Price(70-78), Commission(78-90), Total(90+)
         try
         {
-            if (line.Length < 50) return null;
+            var fields = line.Split(',');
+            if (fields.Length < 5) return null;
 
-            string datePart       = line[..10].Trim();
-            string investmentPart = (line.Length > 42 ? line[10..42] : line[10..]).Trim();
-            string activityPart   = (line.Length > 60 ? line[42..60] : line[42..]).Trim();
-            string qtyPart        = (line.Length > 70 ? line[60..70] : "").Trim();
-            string pricePart      = (line.Length > 82 ? line[70..82] : "").Trim().TrimStart('$');
-            string totalPart      = (line.Length > 90 ? line[90..] : "").Trim();
+            if (!DateTime.TryParse(fields[0].Trim(), out var date)) return null;
 
-            if (!DateTime.TryParse(datePart, out var date)) return null;
-            if (!investmentsByName.TryGetValue(investmentPart, out var investment))
+            string investmentName = fields[1].Trim();
+            string activityStr    = fields[2].Trim();
+
+            if (!decimal.TryParse(fields[3].Trim(), NumberStyles.Any, CultureInfo.InvariantCulture, out var qty))
+                return null;
+
+            string priceStr = fields[4].Trim().TrimStart('$');
+            if (!decimal.TryParse(priceStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var price))
+                return null;
+
+            // fields[5] is commission (may be empty) — skip it
+            decimal total = 0;
+            if (fields.Length >= 7)
             {
-                result.Errors.Add($"Unknown investment '{investmentPart}' on line: {line.Trim()}");
+                string totalStr = fields[6].Trim().TrimStart('$');
+                decimal.TryParse(totalStr, NumberStyles.Any, CultureInfo.InvariantCulture, out total);
+            }
+
+            if (total == 0 && qty != 0 && price != 0) total = qty * price;
+            if (price == 0 && qty != 0 && total != 0) price = total / qty;
+            if (qty   == 0 && price != 0 && total != 0) qty = total / price;
+
+            ActivityType activity = activityStr switch
+            {
+                "Reinvest Dividend" => ActivityType.ReinvestDividend,
+                "Reinvest Interest" => ActivityType.ReinvestInterest,
+                "Sell"              => ActivityType.Sell,
+                _                   => ActivityType.Buy
+            };
+
+            if (!investmentsByName.TryGetValue(investmentName, out var investment))
+            {
+                if (!result.NewInvestments.ContainsKey(investmentName))
+                    result.NewInvestments[investmentName] = price;
                 return null;
             }
+
             if (accountName is null || !accountsByName.TryGetValue(accountName, out var account))
             {
                 result.Errors.Add($"Unknown account '{accountName}'");
                 return null;
             }
-
-            ActivityType activity = activityPart switch
-            {
-                "Buy"                => ActivityType.Buy,
-                "Sell"               => ActivityType.Sell,
-                "Reinvest Dividend"  => ActivityType.ReinvestDividend,
-                "Reinvest Interest"  => ActivityType.ReinvestInterest,
-                _                    => ActivityType.Buy
-            };
-
-            decimal.TryParse(qtyPart,   System.Globalization.NumberStyles.Any, null, out var qty);
-            decimal.TryParse(pricePart, System.Globalization.NumberStyles.Any, null, out var price);
-            decimal.TryParse(totalPart, System.Globalization.NumberStyles.Any, null, out var total);
-
-            // Derive missing value: Total = Qty * Price
-            if (total == 0 && qty != 0 && price != 0) total = qty * price;
-            if (price == 0 && qty != 0 && total != 0) price = total / qty;
-            if (qty == 0 && price != 0 && total != 0) qty   = total / price;
 
             return new Transaction
             {
@@ -116,7 +130,7 @@ public static class TransactionImporter
         }
         catch (Exception ex)
         {
-            result.Errors.Add($"Parse error: {ex.Message} — line: {line.Trim()}");
+            result.Errors.Add($"Parse error: {ex.Message} — line: {line}");
             return null;
         }
     }

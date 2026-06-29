@@ -87,6 +87,8 @@ public partial class PortfolioViewModel : ObservableObject
                     _                             => 0
                 });
 
+                if (qty <= 0) continue;
+
                 // Price priority: manual PriceHistory entry → latest transaction price → investment initial price
                 decimal latestTransactionPrice = group.OrderByDescending(t => t.Date).First().Price;
                 decimal latestPrice = await _investments.GetLatestPriceAsync(inv.Id)

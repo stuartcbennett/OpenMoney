@@ -141,7 +141,7 @@ public partial class SettingsViewModel : ObservableObject
         var dialog = new OpenFileDialog
         {
             Title  = "Select Transaction File",
-            Filter = "Text files (*.txt)|*.txt|All files (*.*)|*.*"
+            Filter = "CSV files (*.csv)|*.csv|Text files (*.txt)|*.txt|All files (*.*)|*.*"
         };
         if (dialog.ShowDialog() == true)
             ImportFilePath = dialog.FileName;
@@ -152,22 +152,55 @@ public partial class SettingsViewModel : ObservableObject
     {
         if (!File.Exists(ImportFilePath)) { ImportStatus = "File not found."; return; }
 
-        var text        = await File.ReadAllTextAsync(ImportFilePath);
-        var invDict     = Investments.ToDictionary(i => i.Name, StringComparer.OrdinalIgnoreCase);
-        var acctDict    = Accounts.ToDictionary(a => a.Name, StringComparer.OrdinalIgnoreCase);
-        var importResult = TransactionImporter.ImportFromText(text, invDict, acctDict);
+        var text     = await File.ReadAllTextAsync(ImportFilePath);
+        var invDict  = Investments.ToDictionary(i => i.Name, StringComparer.OrdinalIgnoreCase);
+        var acctDict = Accounts.ToDictionary(a => a.Name, StringComparer.OrdinalIgnoreCase);
+
+        var firstPass = TransactionImporter.ImportFromText(text, invDict, acctDict);
+
+        // Auto-create any investments that appeared in the file but weren't in the database
+        List<string> createdNames = new();
+        if (firstPass.NewInvestments.Any())
+        {
+            foreach (var (name, initialPrice) in firstPass.NewInvestments)
+            {
+                var newInv = await _investments.AddAsync(new Investment
+                {
+                    Name         = name,
+                    InitialPrice = initialPrice,
+                    Type         = InvestmentType.MutualFund,
+                });
+                invDict[name] = newInv;
+                createdNames.Add(name);
+            }
+        }
+
+        // Re-run with the now-complete investment dictionary if anything was created
+        var importResult = createdNames.Count > 0
+            ? TransactionImporter.ImportFromText(text, invDict, acctDict)
+            : firstPass;
+
+        var statusParts = new List<string>();
 
         if (importResult.Transactions.Any())
         {
             await _transactions.AddRangeAsync(importResult.Transactions);
-            ImportStatus = $"Imported {importResult.Transactions.Count} transaction(s).";
+            statusParts.Add($"Imported {importResult.Transactions.Count} transaction(s).");
         }
         else
         {
-            ImportStatus = "No transactions imported.";
+            statusParts.Add("No transactions imported.");
         }
 
+        if (createdNames.Count > 0)
+            statusParts.Add($"Created {createdNames.Count} new investment(s): {string.Join(", ", createdNames)}.");
+
         if (importResult.Errors.Any())
-            ImportStatus += $" Errors: {string.Join("; ", importResult.Errors)}";
+            statusParts.Add($"Errors: {string.Join("; ", importResult.Errors)}");
+
+        ImportStatus = string.Join(" ", statusParts);
+
+        if (createdNames.Count > 0)
+            await LoadAsync();
     }
 }

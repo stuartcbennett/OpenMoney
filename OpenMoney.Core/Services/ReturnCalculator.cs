@@ -120,19 +120,19 @@ public static class ReturnCalculator
             _                             => 0
         };
 
-    /// <summary>
-    /// Rough estimate of portfolio value at a past date by removing post-date buys/sells
-    /// from current value. Uses cost basis adjustment, not historical prices.
-    /// </summary>
+    // Returns the cost basis of holdings as of `date`, used as a start-value proxy
+    // for the Modified Dietz denominator. For holdings that started within the
+    // measurement period this correctly returns 0; for older holdings it uses
+    // original cost rather than a historical price (which we don't have), so
+    // the resulting return reflects all-time performance rather than the exact period.
     private static decimal EstimateValueAt(
         IReadOnlyList<Transaction> allTx,
         decimal currentValue,
         DateTime date,
         DateTime today)
     {
-        var postFlows = allTx
-            .Where(t => t.Date > date && t.Date <= today)
-            .Sum(t => CashFlow(t));
-        return Math.Max(0, currentValue - (decimal)postFlows);
+        return Math.Max(0, allTx
+            .Where(t => t.Date <= date)
+            .Sum(CashFlow));
     }
 }

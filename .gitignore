@@ -6,3 +6,5 @@ obj/
 appsettings.json
 appsettings.local.json
 .claude/
+InvestmentTransactionsSample.txt
+Setup.md
