@@ -70,16 +70,28 @@ public partial class ReportsViewModel : ObservableObject
     private async Task LoadPriceChartAsync()
     {
         if (SelectedInvestment is null) return;
-        var history = await _investments.GetPriceHistoryAsync(SelectedInvestment.Id);
+
+        // Combine manual PriceHistory entries with prices recorded on transactions —
+        // most investments only ever get a price via imported/entered transactions.
+        var manualHistory = await _investments.GetPriceHistoryAsync(SelectedInvestment.Id);
+        var txHistory     = await _transactions.GetByInvestmentAsync(SelectedInvestment.Id);
+
+        var points = manualHistory
+            .Select(p => (p.Date, p.Price))
+            .Concat(txHistory.Where(t => t.Price > 0).Select(t => (t.Date, t.Price)))
+            .OrderBy(p => p.Date)
+            .ToList();
 
         var model  = CreateDarkModel(SelectedInvestment.Name);
         var series = new LineSeries { Title = SelectedInvestment.Name, Color = OxyColors.Orange };
-        foreach (var p in history)
+        foreach (var p in points)
             series.Points.Add(DateTimeAxis.CreateDataPoint(p.Date, (double)p.Price));
 
         model.Series.Add(series);
-        model.Axes.Add(new DateTimeAxis { Position = AxisPosition.Bottom, StringFormat = "MMM yy" });
-        model.Axes.Add(new LinearAxis   { Position = AxisPosition.Left,   StringFormat = "C" });
+        // Mouse wheel zoom/pan is disabled so the chart always shows the full date range.
+        // TODO: mouse wheel zoom/pan could be re-enabled here by setting IsZoomEnabled/IsPanEnabled to true.
+        model.Axes.Add(new DateTimeAxis { Position = AxisPosition.Bottom, StringFormat = "MMM yy", IsZoomEnabled = false, IsPanEnabled = false });
+        model.Axes.Add(new LinearAxis   { Position = AxisPosition.Left,   StringFormat = "C",       IsZoomEnabled = false, IsPanEnabled = false });
         PriceModel = model;
     }
 
@@ -103,8 +115,10 @@ public partial class ReportsViewModel : ObservableObject
         }
 
         model.Series.Add(series);
-        model.Axes.Add(new DateTimeAxis { Position = AxisPosition.Bottom, StringFormat = "MMM yy" });
-        model.Axes.Add(new LinearAxis   { Position = AxisPosition.Left });
+        // Mouse wheel zoom/pan is disabled so the chart always shows the full date range.
+        // TODO: mouse wheel zoom/pan could be re-enabled here by setting IsZoomEnabled/IsPanEnabled to true.
+        model.Axes.Add(new DateTimeAxis { Position = AxisPosition.Bottom, StringFormat = "MMM yy", IsZoomEnabled = false, IsPanEnabled = false });
+        model.Axes.Add(new LinearAxis   { Position = AxisPosition.Left,   IsZoomEnabled = false, IsPanEnabled = false });
         return model;
     }
 
