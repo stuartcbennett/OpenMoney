@@ -1,6 +1,6 @@
 # OpenMoney
 
-A personal finance desktop application for tracking investment accounts — a modern replacement for Microsoft Money.
+A personal finance desktop application for tracking investment accounts 
 
 ## Purpose
 
